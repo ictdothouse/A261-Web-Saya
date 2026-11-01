@@ -9,6 +9,8 @@ export interface StudentSubmission {
   thumbnailUrl: string;
   submittedAt: string;
   status?: 'Aktif' | 'Dipadam';
+  likes?: number;
+  views?: number;
 }
 
 export interface TeacherUser {

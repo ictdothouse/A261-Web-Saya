@@ -39,6 +39,9 @@ export const submitAssignment = (
   d: Pick<StudentSubmission, 'nama' | 'noMatrik' | 'tajukWeb' | 'linkLamanWeb' | 'slidePdfUrl' | 'slideFileName'>
 ) => post({ action: 'submit', ...d });
 
+export const sendCounter = (action: 'like' | 'view', id: string, delta?: 1 | -1) =>
+  post({ action, id, delta });
+
 export async function adminList(password: string): Promise<AdminData> {
   const data = await post({ action: 'adminList', password });
   return { ...data, submissions: data.submissions.map(toSubmission) };

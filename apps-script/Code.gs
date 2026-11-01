@@ -10,10 +10,11 @@
  *  - backup() salin Sheet setiap hari (simpan 30 salinan terkini).
  */
 
-var HEADERS = ['Tarikh Hantar', 'Nama Pelajar', 'No. Matrik', 'Tajuk Web', 'Link Laman Web', 'Link Slide (PDF)', 'Nama Fail', 'Status', 'ID'];
+var HEADERS = ['Tarikh Hantar', 'Nama Pelajar', 'No. Matrik', 'Tajuk Web', 'Link Laman Web', 'Link Slide (PDF)', 'Nama Fail', 'Status', 'ID', 'Like', 'View'];
 var SHEET_NAME = 'Hantaran Pelajar';
 var MAX_PDF_BYTES = 15 * 1024 * 1024;
 var MAX_PER_HOUR = 200;
+var MAX_COUNTER_PER_HOUR = 3000;
 
 function setup() {
   var props = PropertiesService.getScriptProperties();
@@ -86,7 +87,8 @@ function rows_() {
       submittedAt: r[0] instanceof Date ? r[0].toISOString() : String(r[0]),
       nama: String(r[1]), noMatrik: String(r[2]), tajukWeb: String(r[3]),
       linkLamanWeb: String(r[4]), slidePdfUrl: String(r[5]), slideFileName: String(r[6]),
-      status: String(r[7]), id: String(r[8])
+      status: String(r[7]), id: String(r[8]),
+      likes: Number(r[9]) || 0, views: Number(r[10]) || 0
     };
   });
 }
@@ -109,6 +111,7 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     if (body.action === 'submit') return json_(submit_(body));
+    if (body.action === 'like' || body.action === 'view') return json_(counter_(body));
     return json_(admin_(body));
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err) });
@@ -147,7 +150,7 @@ function submit_(b) {
     } else {
       throw new Error('Slaid PDF diperlukan (fail PDF atau pautan Google Drive).');
     }
-    sheet_().appendRow([new Date(), nama, matrik, tajuk, web, pdfUrl, fileName, 'Aktif', Utilities.getUuid()]);
+    sheet_().appendRow([new Date(), nama, matrik, tajuk, web, pdfUrl, fileName, 'Aktif', Utilities.getUuid(), 0, 0]);
     SpreadsheetApp.flush();
   } finally {
     lock.releaseLock();
@@ -155,6 +158,32 @@ function submit_(b) {
   cache.put(rlKey, '1', 60);
   cache.put(hourKey, String(Number(cache.get(hourKey) || 0) + 1), 3600);
   return { ok: true };
+}
+
+// Like/view awam. Tanpa login, jadi kiraan hanya anggaran (dedupe di browser, had kadar di sini).
+function counter_(b) {
+  var cache = CacheService.getScriptCache();
+  var key = 'c_' + Math.floor(Date.now() / 3600000);
+  var used = Number(cache.get(key) || 0);
+  if (used >= MAX_COUNTER_PER_HOUR) throw new Error('Terlalu banyak permintaan. Cuba sebentar lagi.');
+  var col = b.action === 'like' ? 10 : 11;
+  var delta = b.action === 'like' && b.delta === -1 ? -1 : 1;
+  var count;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = sheet_();
+    if (sh.getRange(1, 10).getValue() === '') sh.getRange(1, 10, 1, 2).setValues([['Like', 'View']]);
+    var target = rows_().filter(function (r) { return r.id === String(b.id) && r.status === 'Aktif'; })[0];
+    if (!target) throw new Error('Rekod tidak dijumpai.');
+    var cell = sh.getRange(target.row, col);
+    count = Math.max(0, (Number(cell.getValue()) || 0) + delta);
+    cell.setValue(count);
+  } finally {
+    lock.releaseLock();
+  }
+  cache.put(key, String(used + 1), 3600);
+  return { ok: true, count: count };
 }
 
 function admin_(b) {

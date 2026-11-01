@@ -113,6 +113,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               <th className="px-4 py-2.5">Pelajar</th>
               <th className="px-4 py-2.5">Tajuk</th>
               <th className="px-4 py-2.5">Pautan</th>
+              <th className="px-4 py-2.5">Like / View</th>
               <th className="px-4 py-2.5">Status</th>
               <th className="px-4 py-2.5" />
             </tr>
@@ -136,6 +137,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <FileText className="w-3.5 h-3.5" /> PDF
                   </button>
                 </td>
+                <td className="px-4 py-2.5 whitespace-nowrap">{s.likes ?? 0} / {s.views ?? 0}</td>
                 <td className="px-4 py-2.5">{s.status}</td>
                 <td className="px-4 py-2.5 text-right">
                   {s.status === 'Dipadam' ? (
@@ -152,7 +154,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             ))}
             {data.submissions.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-zinc-500">
+                <td colSpan={7} className="p-8 text-center text-zinc-500">
                   Tiada rekod hantaran pelajar setakat ini.
                 </td>
               </tr>

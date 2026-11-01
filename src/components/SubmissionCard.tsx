@@ -1,18 +1,69 @@
-import React from 'react';
-import { ExternalLink, FileText } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ExternalLink, FileText, Heart, Eye } from 'lucide-react';
 import { StudentSubmission } from '../types';
 import { getCleanDomain, getCleanFallbackThumbnail } from '../utils/thumbnail';
+import { sendCounter } from '../services/api';
 
 interface SubmissionCardProps {
   submission: StudentSubmission;
   onOpenSlide: (sub: StudentSubmission) => void;
 }
 
+// Dedupe like/view per browser. Tanpa login, ini tidak boleh dipaksa di server.
+const LIKED_KEY = 'a261_liked';
+const VIEWED_KEY = 'a261_viewed';
+
+const readSet = (key: string): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  } catch {
+    return [];
+  }
+};
+
+const writeSet = (key: string, ids: string[]) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(ids));
+  } catch {
+    // storan tidak tersedia: kiraan tetap dihantar, cuma tidak diingati
+  }
+};
+
 export const SubmissionCard: React.FC<SubmissionCardProps> = ({
   submission,
   onOpenSlide,
 }) => {
   const domain = getCleanDomain(submission.linkLamanWeb);
+  const id = submission.id;
+
+  const [likes, setLikes] = useState(submission.likes ?? 0);
+  const [views, setViews] = useState(submission.views ?? 0);
+  const [liked, setLiked] = useState(() => readSet(LIKED_KEY).includes(id));
+
+  useEffect(() => setLikes(submission.likes ?? 0), [submission.likes]);
+  useEffect(() => setViews(submission.views ?? 0), [submission.views]);
+
+  const toggleLike = () => {
+    const next = !liked;
+    const ids = readSet(LIKED_KEY).filter((x) => x !== id);
+    setLiked(next);
+    setLikes((n) => Math.max(0, n + (next ? 1 : -1)));
+    writeSet(LIKED_KEY, next ? [...ids, id] : ids);
+    sendCounter('like', id, next ? 1 : -1).catch(() => {
+      setLiked(!next);
+      setLikes((n) => Math.max(0, n + (next ? -1 : 1)));
+      writeSet(LIKED_KEY, next ? ids : [...ids, id]);
+    });
+  };
+
+  // View dikira bila web/slaid dibuka, sekali setiap browser
+  const countView = () => {
+    const seen = readSet(VIEWED_KEY);
+    if (seen.includes(id)) return;
+    writeSet(VIEWED_KEY, [...seen, id]);
+    setViews((n) => n + 1);
+    sendCounter('view', id).catch(() => {});
+  };
 
   return (
     <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden flex flex-col transition-all duration-200 hover:shadow-md hover:border-zinc-300">
@@ -50,11 +101,33 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({
           </p>
         </div>
 
+        {/* Like & View */}
+        <div className="flex items-center gap-4 text-xs text-zinc-500">
+          <button
+            onClick={toggleLike}
+            aria-pressed={liked}
+            aria-label={liked ? 'Batal suka' : 'Suka projek ini'}
+            className={`inline-flex items-center gap-1.5 py-1 px-2 -ml-2 rounded-md hover:bg-rose-50 transition-colors cursor-pointer ${
+              liked ? 'text-rose-600' : 'hover:text-rose-600'
+            }`}
+          >
+            <Heart className={`w-4 h-4 ${liked ? 'fill-rose-500 text-rose-500' : ''}`} />
+            <span>{likes}</span>
+          </button>
+          <span className="inline-flex items-center gap-1.5" title="Bilangan paparan">
+            <Eye className="w-4 h-4" />
+            <span>{views}</span>
+          </span>
+        </div>
+
         {/* Baris Pautan */}
         <div className="pt-3 border-t border-zinc-100 flex items-center justify-between gap-2 text-xs">
           {/* 4. Pautan Slaid */}
           <button
-            onClick={() => onOpenSlide(submission)}
+            onClick={() => {
+              countView();
+              onOpenSlide(submission);
+            }}
             aria-label={`Buka slaid ${submission.nama}`}
             className="inline-flex items-center gap-1.5 text-zinc-700 hover:text-blue-600 font-medium py-1 px-2 rounded-md hover:bg-zinc-50 transition-colors cursor-pointer"
           >
@@ -67,6 +140,7 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({
             href={submission.linkLamanWeb}
             target="_blank"
             rel="noreferrer"
+            onClick={countView}
             aria-label={`Buka laman web ${submission.nama}`}
             className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-medium py-1 px-2 rounded-md hover:bg-blue-50 transition-colors"
           >

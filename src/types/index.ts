@@ -8,6 +8,7 @@ export interface StudentSubmission {
   linkLamanWeb: string;
   thumbnailUrl: string;
   submittedAt: string;
+  status?: 'Aktif' | 'Dipadam';
 }
 
 export interface TeacherUser {

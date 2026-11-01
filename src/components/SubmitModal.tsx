@@ -1,13 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, FileText, CheckCircle2, Globe, AlertCircle } from 'lucide-react';
 import { StudentSubmission } from '../types';
-import { normalizeUrl, generateWebsiteThumbnail, getCleanFallbackThumbnail } from '../utils/thumbnail';
+import { normalizeUrl } from '../utils/thumbnail';
 import { validateSubmission } from '../utils/validation';
 
 interface SubmitModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: Omit<StudentSubmission, 'id' | 'submittedAt'>) => void;
+  onSubmit: (
+    data: Pick<
+      StudentSubmission,
+      'nama' | 'noMatrik' | 'tajukWeb' | 'linkLamanWeb' | 'slidePdfUrl' | 'slideFileName'
+    >
+  ) => Promise<void>;
 }
 
 export const SubmitModal: React.FC<SubmitModalProps> = ({
@@ -24,6 +29,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({
   const [slideFileName, setSlideFileName] = useState('');
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,8 +45,8 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({
       return;
     }
 
-    if (file.size > 25 * 1024 * 1024) {
-      setErrors((prev) => ({ ...prev, slidePdfUrl: 'Saiz fail PDF melebihi had 25MB.' }));
+    if (file.size > 15 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, slidePdfUrl: 'Saiz fail PDF melebihi had 15MB.' }));
       return;
     }
 
@@ -70,7 +76,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const normalizedWeb = normalizeUrl(linkLamanWeb);
@@ -88,20 +94,29 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({
       return;
     }
 
-    const generatedThumbnail =
-      generateWebsiteThumbnail(normalizedWeb) || getCleanFallbackThumbnail(tajukWeb);
-
-    onSubmit({
-      nama: nama.trim(),
-      noMatrik: noMatrik.trim(),
-      tajukWeb: tajukWeb.trim(),
-      linkLamanWeb: normalizedWeb,
-      slidePdfUrl,
-      slideFileName: slideFileName || 'Slaid_Assignment.pdf',
-      thumbnailUrl: generatedThumbnail,
-    });
-
-    onClose();
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        nama: nama.trim(),
+        noMatrik: noMatrik.trim(),
+        tajukWeb: tajukWeb.trim(),
+        linkLamanWeb: normalizedWeb,
+        slidePdfUrl,
+        slideFileName: slideFileName || 'Slaid_Assignment.pdf',
+      });
+      setNama('');
+      setNoMatrik('');
+      setTajukWeb('');
+      setLinkLamanWeb('');
+      setSlidePdfUrl('');
+      setSlideFileName('');
+      setErrors({});
+      onClose();
+    } catch (err) {
+      setErrors({ form: err instanceof Error ? err.message : 'Gagal menghantar. Cuba lagi.' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -219,7 +234,7 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({
                   <p className="text-xs font-medium text-zinc-700">
                     {isUploadingPdf ? 'Sedang memuat naik...' : 'Klik untuk pilih fail Slaid PDF'}
                   </p>
-                  <p className="text-[11px] text-zinc-400">Format .pdf sahaja (Maksimum 25MB)</p>
+                  <p className="text-[11px] text-zinc-400">Format .pdf sahaja (Maksimum 15MB)</p>
                 </div>
               )}
             </div>
@@ -284,6 +299,8 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({
             </p>
           </div>
 
+          {errors.form && <p className="text-rose-600 text-xs">{errors.form}</p>}
+
           {/* Butang Tindakan */}
           <div className="pt-2 flex items-center justify-end gap-2.5">
             <button
@@ -295,9 +312,10 @@ export const SubmitModal: React.FC<SubmitModalProps> = ({
             </button>
             <button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg text-xs transition-colors shadow-xs cursor-pointer"
+              disabled={submitting || isUploadingPdf}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-lg text-xs transition-colors shadow-xs cursor-pointer"
             >
-              Hantar Tugasan
+              {submitting ? 'Menghantar...' : 'Hantar Tugasan'}
             </button>
           </div>
         </form>

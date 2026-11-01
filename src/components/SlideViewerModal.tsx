@@ -72,6 +72,7 @@ export const SlideViewerModal: React.FC<SlideViewerModalProps> = ({
             <iframe
               src={submission.slidePdfUrl}
               title={`Slaid PDF - ${submission.nama}`}
+              sandbox="allow-scripts allow-same-origin allow-popups"
               className="w-full h-full border border-zinc-200 rounded-xl bg-white shadow-xs"
             />
           ) : (

@@ -99,7 +99,8 @@ function stripRow_(r) {
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === 'list') {
     var list = rows_().filter(function (r) { return r.status === 'Aktif'; }).reverse();
-    return json_({ ok: true, submissions: list.map(stripRow_) });
+    // no. matrik tidak didedahkan kepada umum
+    return json_({ ok: true, submissions: list.map(function (r) { r.noMatrik = ''; return stripRow_(r); }) });
   }
   return json_({ ok: true });
 }
@@ -141,10 +142,10 @@ function submit_(b) {
       var file = DriveApp.getFolderById(prop_('FOLDER_ID')).createFile(Utilities.newBlob(bytes, 'application/pdf', safeName));
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       pdfUrl = file.getUrl();
-    } else if (isHttpUrl_(src) && src.length <= 500) {
+    } else if (/^https:\/\/(drive|docs)\.google\.com\/[^\s]+$/i.test(src) && src.length <= 500) {
       pdfUrl = src;
     } else {
-      throw new Error('Slaid PDF diperlukan.');
+      throw new Error('Slaid PDF diperlukan (fail PDF atau pautan Google Drive).');
     }
     sheet_().appendRow([new Date(), nama, matrik, tajuk, web, pdfUrl, fileName, 'Aktif', Utilities.getUuid()]);
     SpreadsheetApp.flush();
